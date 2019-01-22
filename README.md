@@ -26,7 +26,7 @@ The process (program) that is supposedly “inside” the container is actually 
 * namespacing = isolating resources per process (or group of processes) ; like hard drive, users, etc
 * cgroups = limit the amount of resources used per process ; like memory, cpu usage, etc.
 
---- 
+---
 
 ### Docker client (docker cli)
 Tool that we issue commands to. (in terminal)
@@ -91,6 +91,7 @@ docker run = docker create + docker start
 1. Get the id of the container you want to restart by running `docker ps --all`
 2. Then, `docker start -a id`
    
+
 When you started a container and let it exit, you can start it back again, which will re-issue the default command that was used when the container was first created.
 
 When you have a container that's already been created, you cannot replace the default command.
@@ -112,7 +113,6 @@ docker logs container-id
 `docker logs` is used to look at the (stopped) container and retrieve all the information that has been emitted from it.
 
 `docker logs` does not re-run or restart the container, it just gets the record of all the logs that have been emitted from that container.
-
 
 ---
 
@@ -201,6 +201,17 @@ docker build .
 ```
 ---
 ### The Build Process
+
+Dockerfile
+
+```dockerfile
+FROM alpine
+RUN apk add --update redis
+CMD ["redis-server"]
+```
+
+
+
 ```
 FROM alpine
 - alpine image is downloaded from dockerhub (if it's not already in our local build cache)
@@ -218,4 +229,144 @@ CMD ["redis-server"]
 ```
 
 - Every step along the way, with every additional instruction, we take the image that was generated in the previous step, we create a new container out of it, we execute a command in the container or make a change to its file system. We then take a snapshot of the container's file system + primary command to save it as an image for the next instruction along the chain. And when there are no more instructions to execute, the image that was generated during that last step is output from the entire process as the final image.
+
+![Build process image](./images/build-process.png?raw=true "The Build Process")
+
+```
+mahendhar@mahendhar:~/Desktop/docker/example$ docker build .
+Sending build context to Docker daemon  2.048kB
+
+Step 1/3 : FROM alpine
+latest: Pulling from library/alpine
+cd784148e348: Pull complete 
+Digest: sha256:46e71df1e5191ab8b8034c5189e325258ec44ea739bba1e5645cff83c9048ff1
+Status: Downloaded newer image for alpine:latest
+ ---> 3f53bb00af94 // this is the image
+ 
+Step 2/3 : RUN apk add --update redis
+ ---> Running in 40a651578f04 // new container
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.8/main/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.8/community/x86_64/APKINDEX.tar.gz
+(1/1) Installing redis (4.0.11-r0)
+Executing redis-4.0.11-r0.pre-install
+Executing redis-4.0.11-r0.post-install
+Executing busybox-1.28.4-r2.trigger
+OK: 6 MiB in 14 packages
+Removing intermediate container 40a651578f04
+ ---> eb1a4e04b6ed // image
+ 
+Step 3/3 : CMD ["redis-server"]
+ ---> Running in 5a3f0877d48a
+Removing intermediate container 5a3f0877d48a
+ ---> c773acdd1669 // final image
+Successfully built c773acdd1669 
+```
 ---
+
+### Rebuilds with cache
+
+- Before downloading an image, docker first looks for it in its cache. If the image is not in the cache, it will download it. If it's in cache, it will not download again. It uses the downloaded image.
+
+```
+// Building image again with the same Docker file as above
+
+mahendhar@mahendhar:~/Desktop/docker/example$ docker build .
+Sending build context to Docker daemon  2.048kB
+
+Step 1/3 : FROM alpine
+ ---> 3f53bb00af94
+ 
+Step 2/3 : RUN apk add --update redis
+ ---> Using cache
+ ---> eb1a4e04b6ed
+ 
+Step 3/3 : CMD ["redis-server"]
+ ---> Using cache
+ ---> c773acdd1669
+Successfully built c773acdd1669
+```
+
+- Anytime that we make a change to our Docker file, we have to only re-run the series of steps from the changed line down.
+
+Modified Dockerfile (added gcc)
+
+```dockerfile
+FROM alpine
+RUN apk add --update redis
+RUN apk add --update gcc
+CMD ["redis-server"]
+```
+
+Building image from the above modified Dockerfile
+
+```
+mahendhar@mahendhar:~/Desktop/docker/example$ docker build .
+Sending build context to Docker daemon  2.048kB
+
+Step 1/4 : FROM alpine
+ ---> 3f53bb00af94
+ 
+Step 2/4 : RUN apk add --update redis
+ ---> Using cache
+ ---> eb1a4e04b6ed
+ 
+Step 3/4 : RUN apk add --update gcc
+ ---> Running in 643d478a84d0
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.8/main/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.8/community/x86_64/APKINDEX.tar.gz
+(1/11) Installing binutils (2.30-r5)
+(2/11) Installing gmp (6.1.2-r1)
+(3/11) Installing isl (0.18-r0)
+(4/11) Installing libgomp (6.4.0-r9)
+(5/11) Installing libatomic (6.4.0-r9)
+(6/11) Installing pkgconf (1.5.3-r0)
+(7/11) Installing libgcc (6.4.0-r9)
+(8/11) Installing mpfr3 (3.1.5-r1)
+(9/11) Installing mpc1 (1.0.3-r1)
+(10/11) Installing libstdc++ (6.4.0-r9)
+(11/11) Installing gcc (6.4.0-r9)
+Executing busybox-1.28.4-r2.trigger
+OK: 90 MiB in 25 packages
+Removing intermediate container 643d478a84d0
+ ---> de90a46be22b
+ 
+Step 4/4 : CMD ["redis-server"]
+ ---> Running in cccb49b03146
+Removing intermediate container cccb49b03146
+ ---> ebdb5ee5dd00 // final image
+Successfully built ebdb5ee5dd00
+```
+
+---
+
+### Tagging an image
+
+To create a container from the image generated above,
+
+```
+docker run ebdb5ee5dd00
+```
+
+Instead of giving an id like `ebdb5ee5dd00`, we can tag the image to have a name, when building it.
+
+```
+docker build -t docker-id/repo-name:version .
+
+docker-id = your dockerhub id
+repo-name = your repo/project name
+
+Note: Even though this process is called tagging the image, the version on the end is called the tag
+
+eg: docker build -t mahendhar9/redis:latest .
+	--> Successfully built 7dfdfbsf1014
+	--> Successfully tagged mahendhar9/redis:latest
+```
+
+Now, to create a container out of the above image,
+
+```
+docker run mahendhar9/redis
+```
+
+---
+
