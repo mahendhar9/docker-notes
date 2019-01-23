@@ -77,14 +77,14 @@ docker run = docker create + docker start
             ( create container from image + start the container )
 ```
 
-- `docker create hello-world `
-7d73e7be3251c2e06ce20652629c8e5d893e2d57ddaf464a03afc5ab69c41769 
-(id of the container that was created) 
-<br>
-- `docker start -a id-of-container`
--a = watch for output from the container and print it out to the terminal
+- `docker create hello-world `  
+  7d73e7be3251c2e06ce20652629c8e5d893e2d57ddaf464a03afc5ab69c41769   
+  (id of the container that was created) 
 
-*By default,`docker run` shows all the logs or information coming out of the container, while `docker start` does not.
+- `docker start -a id-of-container`  
+  -a = watch for output from the container and print it out to the terminal
+
+* By default, `docker run` shows all the logs or information coming out of the container, while `docker start` does not.
 
 ----
 ### Restarting stopped containers
@@ -366,6 +366,80 @@ Now, to create a container out of the above image,
 
 ```
 docker run mahendhar9/redis
+```
+
+---
+
+### Small Sinatra Project 
+
+`index.rb` 
+
+```ruby
+require "sinatra"
+
+get "/" do
+  "Hello world!"
+end
+```
+
+`Gemfile`
+
+```ruby
+source "http://rubygems.org"
+
+gem "sinatra"
+```
+
+`Dockerfile`
+
+```dockerfile
+FROM ruby:alpine
+
+WORKDIR /usr/app
+
+COPY Gemfile Gemfile.lock ./
+
+RUN bundle install
+
+COPY ./ ./
+
+CMD ["ruby", "index.rb", "-o", "0.0.0.0"]
+```
+
+- Build the image
+
+```
+docker build -t mahendhar9/simpleweb .
+```
+
+- On first build of image, `bundle install` runs. From the second build onwards,  `bundle install`  only runs if `Gemfile` changes or any step above it changes. 
+
+---
+
+### Specifying a working directory in the container
+
+![Copy command in Dockerfile](./images/workdir.png?raw=true "The Copy Command")
+
+---
+
+### Copying Build Files
+
+![Copy command in Dockerfile](./images/copy-command.png?raw=true "The Copy Command")
+
+---
+
+### Container Port Mapping
+
+
+
+![Port Mapping](./images/port-mapping.png?raw=true "Port Mapping")
+
+
+
+
+
+```
+docker run -p 4567:4567 mahendhar9/simpleweb
 ```
 
 ---
